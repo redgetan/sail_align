@@ -280,6 +280,23 @@ sub align_speech_signal_text {
     my $n_unknown_words = @$unknown_words_ref;
     DEBUG("Number of unknown words in the transcription: $n_unknown_words");
 
+    # For words that dont have corresponding pronounciations in the dictionary
+    # We dynamically generate their pronounciation using a grapheme-to-phoneme generator
+    my $pronounce_cmd;
+    my $pronounce_entry;
+    my $phoneme;
+
+    foreach my $unknown_word (@$unknown_words_ref) {
+      $pronounce_cmd = "echo $unknown_word | $this->{bin_path}/../pronounce/bin/pronounce -P40 -r $this->{bin_path}/../pronounce/ -d cmu_dictionary.dic";
+      $pronounce_entry = (split(/\n/,`$pronounce_cmd`))[-1];
+      $phoneme = lc ((split(/\t/,$pronounce_entry))[-1]);
+      $words_pron_ref->{$unknown_word} = $phoneme;
+    }
+
+    # Clear out unknown words since were able to programtically determine their phonemes (and subsequently add them to our dictionary) using the 'pronounce' binary
+
+    @$unknown_words_ref = ();
+
     # Add short pause to the end of each pronounciation. This is only needed
     # for tools like HVite that do not add a short pause model at the end
     # of the words. HDecode on the other hand does and gets confused if
@@ -296,6 +313,7 @@ sub align_speech_signal_text {
         $phone_dict_conf->{output_symbols_list} );
     SailTools::SailLanguage::print_htk_dictionary_into_file( $words_pron_ref,
         $output_symbols_ref, $phone_dict_conf->{file} );
+
     SailTools::SailComponent::print_into_file( $unknown_words_ref,
         $language_conf->{unknown_wordlist} );
     push( @$words_ref, @$sent_boundaries_ref );
